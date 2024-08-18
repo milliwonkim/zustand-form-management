@@ -1,22 +1,40 @@
-import { FormEventHandler, useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import { createTypedForm } from "./useFormStore";
 
-// 폼 타입 정의
-type UserFormDataOne = {
+// 취미 항목의 타입 정의
+type HobbyItem = {
   name: string;
   gender: string;
+  country: string;
 };
-type UserFormDataTwo = {
+
+// 폼 데이터 타입 정의
+type UserFormData = {
   name: string;
+  email: string;
   age: number;
+  hobbies: HobbyItem[];
+};
+
+// 기본값 정의
+const defaultFormData: UserFormData = {
+  name: "",
+  email: "",
+  age: 0,
+  hobbies: [],
+};
+
+// 새 취미 항목의 기본값
+const defaultHobbyItem: HobbyItem = {
+  name: "",
+  gender: "",
+  country: "",
 };
 
 // 타입이 지정된 폼 생성
-const useUserFormOne = createTypedForm<UserFormDataOne>();
-const useUserFormTwo = createTypedForm<UserFormDataTwo>();
+const useUserForm = createTypedForm<UserFormData>();
 
-// 컴포넌트에서 사용
-const UserFormOne = () => {
+const UserForm: React.FC = () => {
   const {
     formData,
     error,
@@ -24,103 +42,146 @@ const UserFormOne = () => {
     resetFormData,
     submitFormData,
     setFormError,
-  } = useUserFormOne("userFormOne");
+    updateFormArray,
+    addToFormArray,
+    removeFromFormArray,
+  } = useUserForm("userForm");
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value =
-      e.target.name === "age" ? parseInt(e.target.value) : e.target.value;
-    updateFormData({ [e.target.name]: value });
-  };
+  // 컴포넌트 마운트 시 기본값 설정
+  useEffect(() => {
+    updateFormData(defaultFormData);
+  }, [updateFormData]);
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
-    (e) => {
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      updateFormData({ [name]: name === "age" ? Number(value) : value });
+    },
+    [updateFormData]
+  );
+
+  const handleHobbyAdd = useCallback(() => {
+    addToFormArray("hobbies", defaultHobbyItem);
+  }, [addToFormArray]);
+
+  const handleHobbyChange = useCallback(
+    (index: number, field: keyof HobbyItem, value: string) => {
+      updateFormArray("hobbies", index, {
+        ...((formData.hobbies && formData.hobbies[index]) || defaultHobbyItem),
+        [field]: value,
+      });
+    },
+    [formData.hobbies, updateFormArray]
+  );
+
+  const handleHobbyRemove = useCallback(
+    (index: number) => {
+      removeFromFormArray("hobbies", index);
+    },
+    [removeFromFormArray]
+  );
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
       e.preventDefault();
-      if (formData.gender === "man") {
-        setFormError({ gender: "err!!!", name: undefined });
+      if (!formData.name) {
+        setFormError({
+          name: "Name is required",
+          hobbies: [{ name: "fdsjioafjs" }],
+        });
         return;
       }
       submitFormData();
+      console.log("Form submitted:", formData);
     },
-    [formData.gender, setFormError, submitFormData]
+    [formData, setFormError, submitFormData]
   );
 
-  console.info("error", error);
+  // formData가 undefined일 경우를 대비한 안전한 접근
+  const safeFormData: UserFormData = formData || defaultFormData;
 
   return (
     <form onSubmit={handleSubmit}>
-      <input
-        name="name"
-        value={formData?.name || ""}
-        onChange={handleInputChange}
-        placeholder="이름"
-      />
-      <input
-        name="gender"
-        value={formData?.gender || ""}
-        onChange={handleInputChange}
-        placeholder="gender"
-      />
-      <button type="submit">제출</button>
-      <button type="button" onClick={resetFormData}>
-        초기화
-      </button>
-    </form>
-  );
-};
-
-const UserFormTwo = () => {
-  const { formData, updateFormData, resetFormData, submitFormData } =
-    useUserFormTwo("userFormTwo");
-
-  console.info("formData 2", formData);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value =
-      e.target.name === "age" ? parseInt(e.target.value) : e.target.value;
-    updateFormData({ [e.target.name]: value });
-  };
-
-  const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
-    (e) => {
-      e.preventDefault();
-
-      if (formData) submitFormData();
-    },
-    [formData, submitFormData]
-  );
-
-  return (
-    <div>
-      <h1>Form 2</h1>
-      <form onSubmit={handleSubmit}>
+      <div>
+        <label htmlFor="name">Name:</label>
         <input
+          id="name"
           name="name"
-          value={formData?.name || ""}
+          value={safeFormData.name || ""}
           onChange={handleInputChange}
-          placeholder="이름"
         />
+        {error?.name && <span style={{ color: "red" }}>{error.name}</span>}
+      </div>
+
+      <div>
+        <label htmlFor="email">Email:</label>
         <input
+          id="email"
+          name="email"
+          type="email"
+          value={safeFormData.email || ""}
+          onChange={handleInputChange}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="age">Age:</label>
+        <input
+          id="age"
           name="age"
           type="number"
-          value={formData?.age || ""}
+          value={safeFormData.age || ""}
           onChange={handleInputChange}
-          placeholder="나이"
         />
-        <button type="submit">제출</button>
-        <button type="button" onClick={resetFormData}>
-          초기화
-        </button>
-      </form>
-    </div>
-  );
-};
+      </div>
 
-const UserForm = () => {
-  return (
-    <>
-      <UserFormOne />
-      <UserFormTwo />
-    </>
+      <div>
+        <h3>Hobbies:</h3>
+        {(safeFormData.hobbies || []).map((hobby, index) => (
+          <div
+            key={index}
+            style={{
+              marginBottom: "10px",
+              padding: "10px",
+              border: "1px solid #ccc",
+            }}
+          >
+            <input
+              placeholder="Hobby name"
+              value={hobby.name}
+              onChange={(e) => handleHobbyChange(index, "name", e.target.value)}
+            />
+            <input
+              placeholder="Gender"
+              value={hobby.gender}
+              onChange={(e) =>
+                handleHobbyChange(index, "gender", e.target.value)
+              }
+            />
+            <input
+              placeholder="Country"
+              value={hobby.country}
+              onChange={(e) =>
+                handleHobbyChange(index, "country", e.target.value)
+              }
+            />
+            <button type="button" onClick={() => handleHobbyRemove(index)}>
+              Remove
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={handleHobbyAdd}>
+          Add Hobby
+        </button>
+      </div>
+
+      <div>
+        <button type="submit">Submit</button>
+        <button type="button" onClick={resetFormData}>
+          Reset
+        </button>
+      </div>
+    </form>
   );
 };
 
